@@ -1,6 +1,6 @@
 # goclean
 
-> **Status: Go support is fully working. Python, Rust, Node.js, Java (Maven/Gradle) cache browsing is implemented but still being tested and refined.**
+> **v1.0.0** | **Status: Go support is fully working. Python, Rust, Node.js, Java (Maven/Gradle) cache browsing is implemented but still being tested and refined.**
 
 Multi-language package cache cleaner with an interactive TUI. Find unused dependencies and reclaim disk space.
 
@@ -31,6 +31,7 @@ goclean
 | `--paths` | Comma-separated directories to scan for Go projects |
 | `--dry-run` | Simulate deletion without removing files |
 | `--verbose` | Show detailed logs |
+| `--version` | Show version |
 
 ### Examples
 

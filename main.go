@@ -13,11 +13,19 @@ import (
 	"github.com/Aswanidev-vs/goclean/tui"
 )
 
+var version = "v1.0.0"
+
 func main() {
 	pathsFlag := flag.String("paths", "", "Comma-separated list of directories to scan")
 	dryRun := flag.Bool("dry-run", false, "Simulate deletion without removing files")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
+	showVersion := flag.Bool("version", false, "Show version")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("goclean %s\n", version)
+		os.Exit(0)
+	}
 
 	cfg := config.Load()
 
@@ -49,7 +57,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Scan paths: %v\n", scanPaths)
 	}
 
-	model := tui.NewModel(scanPaths, cfg.DryRun, *verbose)
+	model := tui.NewModel(scanPaths, cfg.DryRun, *verbose, version)
 	p := tea.NewProgram(model, tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {

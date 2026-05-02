@@ -56,6 +56,7 @@ type Model struct {
 	screen     Screen
 	menuCursor int
 	menuItems  []string
+	version    string
 
 	spinner   spinner.Model
 	progress  progress.Model
@@ -118,7 +119,7 @@ type deleteDoneMsg struct {
 	count      int
 }
 
-func NewModel(paths []string, dryRun, verbose bool) Model {
+func NewModel(paths []string, dryRun, verbose bool, ver string) Model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -152,6 +153,7 @@ func NewModel(paths []string, dryRun, verbose bool) Model {
 		dryRun:    dryRun,
 		verbose:   verbose,
 		showInfo:  true,
+		version:   ver,
 	}
 }
 
@@ -308,6 +310,28 @@ func (m Model) pathDisplay() string {
 		short = append(short, home)
 	}
 	return strings.Join(short, "\n    ")
+}
+
+func (m Model) pathDisplayShort() string {
+	if len(m.paths) == 0 {
+		return "(none)"
+	}
+	home, _ := filepath.Abs(homePath())
+	var short []string
+	for _, p := range m.paths {
+		abs, _ := filepath.Abs(p)
+		if strings.HasPrefix(abs, home) {
+			short = append(short, "~"+abs[len(home):])
+		} else {
+			short = append(short, abs)
+		}
+	}
+	return strings.Join(short, ", ")
+}
+
+func homePath() string {
+	h, _ := os.UserHomeDir()
+	return h
 }
 
 func (m Model) pathShort(p string) string {

@@ -45,15 +45,19 @@ func (m Model) viewMenu() string {
 	var b strings.Builder
 
 	b.WriteString("\n")
-	b.WriteString(titleStyle.Render("  goclean"))
+	if m.version != "" && m.version != "dev" {
+		b.WriteString(titleStyle.Render(fmt.Sprintf("  goclean %s", m.version)))
+	} else {
+		b.WriteString(titleStyle.Render("  goclean"))
+	}
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render("  Multi-Language Package Cache Cleaner"))
+	b.WriteString(dimStyle.Render("  Package Cache Cleaner"))
 	b.WriteString("\n\n")
 
 	descriptions := []string{
-		"find unused Go modules across all projects",
-		"browse & delete cached packages (Go, Python, Rust, Node, Java, .NET)",
-		"set directories to scan for Go projects",
+		"scan & find unused Go modules",
+		"browse & delete cached packages",
+		"set directories to scan",
 		"",
 		"",
 	}
@@ -72,7 +76,7 @@ func (m Model) viewMenu() string {
 			if m.dryRun {
 				status = "ON"
 			}
-			b.WriteString(dimStyle.Render(fmt.Sprintf("  — currently: %s", status)))
+			b.WriteString(dimStyle.Render(fmt.Sprintf("  — %s", status)))
 		} else if descriptions[i] != "" {
 			b.WriteString(dimStyle.Render("  — " + descriptions[i]))
 		}
@@ -83,13 +87,13 @@ func (m Model) viewMenu() string {
 	b.WriteString("\n")
 	if m.showInfo {
 		b.WriteString(infoBox.Render(fmt.Sprintf(
-			"Scan paths:\n    %s\n\nDry-run: %v",
-			m.pathDisplay(),
+			"Paths: %s | Dry-run: %v",
+			m.pathDisplayShort(),
 			m.dryRun,
 		)))
 		b.WriteString("\n\n")
 	}
-	b.WriteString(helpStyle.Render("↑/↓: navigate | enter/space: select | i: toggle info | q: quit"))
+	b.WriteString(helpStyle.Render("↑/↓ move | enter select | i info | q quit"))
 	return b.String()
 }
 
@@ -114,7 +118,7 @@ func (m Model) viewPaths() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("enter: add path | ctrl+d: remove last | esc: back to menu"))
+	b.WriteString(helpStyle.Render("enter add | ctrl+d remove | esc back"))
 	return b.String()
 }
 
@@ -126,7 +130,7 @@ func (m Model) viewLoading(msg string) string {
 	b.WriteString("\n\n")
 	b.WriteString(dimStyle.Render("  This may take a moment for large caches."))
 	b.WriteString("\n\n")
-	b.WriteString(helpStyle.Render("q: abort"))
+	b.WriteString(helpStyle.Render("↑/↓ move | space toggle | a all | n none | / search | s sort | enter delete | q back"))
 	return b.String()
 }
 
@@ -152,11 +156,11 @@ func (m Model) viewSummary() string {
 	if len(m.unusedModules) == 0 {
 		b.WriteString(successStyle.Render("  No unused modules found! Your cache is clean."))
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("m: back to menu | q: quit"))
+		b.WriteString(helpStyle.Render("m menu | q quit"))
 	} else {
 		b.WriteString(subtitleStyle.Render("  Press Enter to review unused modules"))
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("enter: view unused modules | m: back to menu | q: quit"))
+		b.WriteString(helpStyle.Render("enter view | m menu | q quit"))
 	}
 	return b.String()
 }
@@ -176,7 +180,7 @@ func (m Model) viewList() string {
 	if len(visible) == 0 {
 		b.WriteString(dimStyle.Render("  No modules match the filter."))
 		b.WriteString("\n")
-		b.WriteString(helpStyle.Render("q: back | /: search"))
+		b.WriteString(helpStyle.Render("q back | / search"))
 		return b.String()
 	}
 
@@ -238,7 +242,7 @@ func (m Model) viewConfirm() string {
 	}
 	b.WriteString(warningStyle.Render("  Proceed?"))
 	b.WriteString("\n\n")
-	b.WriteString(helpStyle.Render("y: yes, delete | n: no, go back"))
+	b.WriteString(helpStyle.Render("y yes | n go back"))
 	return b.String()
 }
 
@@ -335,7 +339,7 @@ func (m Model) viewLangSelect() string {
 	}
 
 	b.WriteString("\n\n")
-	b.WriteString(helpStyle.Render("↑/↓: navigate | enter/space: select | q: back"))
+	b.WriteString(helpStyle.Render("↑/↓ navigate | enter select | q back"))
 	return b.String()
 }
 
@@ -387,7 +391,7 @@ func (m Model) viewCache() string {
 		}
 
 		b.WriteString("\n")
-		b.WriteString(helpStyle.Render("q: back"))
+		b.WriteString(helpStyle.Render("q back"))
 		return b.String()
 	}
 
@@ -449,6 +453,6 @@ func (m Model) viewCacheConfirm() string {
 	}
 	b.WriteString(warningStyle.Render("  Proceed?"))
 	b.WriteString("\n\n")
-	b.WriteString(helpStyle.Render("y: yes, delete | n: no, go back"))
+	b.WriteString(helpStyle.Render("y yes | n go back"))
 	return b.String()
 }
