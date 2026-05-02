@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -153,18 +154,6 @@ func (m Model) handlePathsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.screen = ScreenMenu
 		m.pathInput.Blur()
 		return m, nil
-	case "enter":
-		val := strings.TrimSpace(m.pathInput.Value())
-		if val != "" {
-			abs, err := filepath.Abs(val)
-			if err == nil {
-				m.paths = append(m.paths, abs)
-				m.cfg.AddPath(abs)
-			}
-			m.pathInput.SetValue("")
-			m.saveConfig()
-		}
-		return m, nil
 	case "ctrl+d":
 		if len(m.paths) > 0 {
 			removed := m.paths[len(m.paths)-1]
@@ -174,8 +163,25 @@ func (m Model) handlePathsKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+
 	var cmd tea.Cmd
 	m.pathInput, cmd = m.pathInput.Update(msg)
+
+	if msg.String() == "enter" {
+		val := strings.TrimSpace(m.pathInput.Value())
+		if val != "" {
+			abs, err := filepath.Abs(val)
+			if err == nil {
+				if _, statErr := os.Stat(abs); statErr == nil {
+					m.paths = append(m.paths, abs)
+					m.cfg.AddPath(abs)
+					m.saveConfig()
+				}
+			}
+			m.pathInput.SetValue("")
+		}
+	}
+
 	return m, cmd
 }
 

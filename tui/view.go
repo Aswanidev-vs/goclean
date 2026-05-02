@@ -102,7 +102,9 @@ func (m Model) viewPaths() string {
 	b.WriteString("\n")
 	b.WriteString(titleStyle.Render("  Configure Scan Paths"))
 	b.WriteString("\n\n")
-	b.WriteString(m.pathInput.View())
+	b.WriteString(dimStyle.Render("  Type a folder path and press Enter to add:"))
+	b.WriteString("\n\n")
+	b.WriteString("  " + m.pathInput.View())
 	b.WriteString("\n\n")
 
 	if len(m.paths) > 0 {
@@ -118,7 +120,7 @@ func (m Model) viewPaths() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("enter add | ctrl+d remove | esc back"))
+	b.WriteString(helpStyle.Render("type path + enter to add | ctrl+d remove last | esc back"))
 	return b.String()
 }
 

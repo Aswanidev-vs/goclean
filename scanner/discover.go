@@ -66,25 +66,6 @@ func DefaultPaths() []string {
 		addPath(filepath.Join(home, name))
 	}
 
-	entries, err := os.ReadDir(home)
-	if err == nil {
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			lower := strings.ToLower(entry.Name())
-			if lower == "desktop" || lower == "documents" || lower == "downloads" ||
-				lower == "pictures" || lower == "music" || lower == "videos" ||
-				lower == ".cache" || lower == ".config" || lower == ".local" ||
-				lower == ".cargo" || lower == ".npm" || lower == ".gradle" ||
-				lower == ".m2" || lower == ".nuget" || lower == ".vscode" ||
-				lower == ".android" || lower == ".ssh" || lower == ".docker" {
-				continue
-			}
-			addPath(filepath.Join(home, entry.Name()))
-		}
-	}
-
 	return paths
 }
 
