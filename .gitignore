@@ -1,0 +1,33 @@
+# Binaries
+goclean
+goclean.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Go coverage
+*.out
+coverage.txt
+
+# Dependency directories
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Config (user-specific)
+.goclean.json
