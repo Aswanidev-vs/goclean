@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -17,6 +18,8 @@ import (
 	"github.com/Aswanidev-vs/goclean/config"
 	"github.com/Aswanidev-vs/goclean/lang"
 	"github.com/Aswanidev-vs/goclean/scanner"
+	"github.com/Aswanidev-vs/goclean/tempcache"
+	"github.com/Aswanidev-vs/goclean/util"
 )
 
 type Screen int
@@ -35,6 +38,11 @@ const (
 	ScreenCache
 	ScreenCacheConfirm
 	ScreenCacheDeleting
+	ScreenTempCache
+	ScreenTempCacheDetail
+	ScreenTempCacheConfirm
+	ScreenTempCacheDeleting
+	ScreenTempCacheDone
 )
 
 type Pkg struct {
@@ -98,6 +106,18 @@ type Model struct {
 	paths   []string
 	dryRun  bool
 	verbose bool
+
+	sizeComputing bool
+	sizesComputed int
+	computeID     int64
+
+	tcItems      []tempcache.Item
+	tcCursor     int
+	tcSelected   map[int]bool
+	tcSizes      []int64
+	tcComputing  bool
+	tcResults    []tcCleanResult
+	tcTotalFreed int64
 }
 
 type scanResultMsg struct {
@@ -117,6 +137,34 @@ type deleteDoneMsg struct {
 	results    []cleaner.DeleteResult
 	freedBytes int64
 	count      int
+}
+
+type sizeProgressMsg struct {
+	index int
+	size  int64
+	id    int64
+}
+
+type allSizesDoneMsg struct {
+	id int64
+}
+
+type tcSizeMsg struct {
+	index int
+	size  int64
+}
+
+type tcSizesDoneMsg struct{}
+
+type tcCleanResult struct {
+	name  string
+	freed int64
+	err   error
+}
+
+type tcCleanDoneMsg struct {
+	results    []tcCleanResult
+	totalFreed int64
 }
 
 func NewModel(paths []string, dryRun, verbose bool, ver string) Model {
@@ -143,7 +191,7 @@ func NewModel(paths []string, dryRun, verbose bool, ver string) Model {
 
 	return Model{
 		screen:    ScreenMenu,
-		menuItems: []string{"Start Scan", "Browse Cache", "Configure Paths", "Toggle Dry-Run", "Quit"},
+		menuItems: []string{"Start Scan", "Browse Cache", "Configure Paths", "Toggle Dry-Run", "Clean Temp & Cache Files", "Quit"},
 		spinner:   sp,
 		progress:  p,
 		search:    ti,
@@ -204,29 +252,63 @@ func doScan(paths []string) scanResultMsg {
 	}
 }
 
+var sizeSem = make(chan struct{}, 16)
+
 func loadLangCache(langID string) cacheLoadMsg {
 	for _, lc := range lang.Registry {
 		if lc.ID == langID {
 			paths := lc.CachePaths()
+			var mu sync.Mutex
+			var wg sync.WaitGroup
 			var all []Pkg
+
 			for _, p := range paths {
 				if !pathExists(p) {
 					continue
 				}
-				pkgs := lc.ScanFunc(p)
-				for _, pkg := range pkgs {
-					all = append(all, Pkg{
-						Name:    pkg.Name,
-						Version: pkg.Version,
-						Size:    pkg.Size,
-						Path:    pkg.Path,
-					})
-				}
+				wg.Add(1)
+				go func(path string) {
+					defer wg.Done()
+					pkgs := lc.ScanFunc(path)
+					mu.Lock()
+					for _, pkg := range pkgs {
+						all = append(all, Pkg{
+							Name:    pkg.Name,
+							Version: pkg.Version,
+							Size:    pkg.Size,
+							Path:    pkg.Path,
+						})
+					}
+					mu.Unlock()
+				}(p)
 			}
+
+			wg.Wait()
 			return cacheLoadMsg{modules: all}
 		}
 	}
 	return cacheLoadMsg{err: fmt.Errorf("unknown language: %s", langID)}
+}
+
+func (m Model) startSizeComputation() tea.Cmd {
+	m.computeID++
+	id := m.computeID
+	var cmds []tea.Cmd
+	for i, mod := range m.unusedModules {
+		if mod.Path == "" {
+			continue
+		}
+		idx, path := i, mod.Path
+		cmds = append(cmds, func() tea.Msg {
+			sizeSem <- struct{}{}
+			defer func() { <-sizeSem }()
+			return sizeProgressMsg{index: idx, size: util.DirSize(path), id: id}
+		})
+	}
+	cmds = append(cmds, func() tea.Msg {
+		return allSizesDoneMsg{id: id}
+	})
+	return tea.Batch(cmds...)
 }
 
 func pathExists(p string) bool {

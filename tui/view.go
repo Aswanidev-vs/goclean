@@ -37,6 +37,16 @@ func (m Model) View() string {
 		return m.viewCacheConfirm()
 	case ScreenCacheDeleting:
 		return m.viewDeleting("Deleting packages...")
+	case ScreenTempCache:
+		return m.viewTempCache()
+	case ScreenTempCacheDetail:
+		return m.viewTempCacheDetail()
+	case ScreenTempCacheConfirm:
+		return m.viewTempCacheConfirm()
+	case ScreenTempCacheDeleting:
+		return m.viewTempCacheDeleting()
+	case ScreenTempCacheDone:
+		return m.viewTempCacheDone()
 	}
 	return ""
 }
@@ -59,6 +69,7 @@ func (m Model) viewMenu() string {
 		"browse & delete cached packages",
 		"set directories to scan",
 		"",
+		"OS temp files, browser caches, Docker",
 		"",
 	}
 
@@ -130,7 +141,7 @@ func (m Model) viewLoading(msg string) string {
 	b.WriteString(m.spinner.View() + " ")
 	b.WriteString(warningStyle.Render(msg))
 	b.WriteString("\n\n")
-	b.WriteString(dimStyle.Render("  This may take a moment for large caches."))
+	b.WriteString(dimStyle.Render("  Sizes computed lazily in background — list is available instantly."))
 	b.WriteString("\n\n")
 	b.WriteString(helpStyle.Render("↑/↓ move | space toggle | a all | n none | / search | s sort | enter delete | q back"))
 	return b.String()
@@ -142,6 +153,15 @@ func (m Model) viewSummary() string {
 	b.WriteString(titleStyle.Render("  Scan Results"))
 	b.WriteString("\n\n")
 
+	reclaimStr := warningStyle.Render(formatSize(m.freedBytes))
+	if m.sizeComputing {
+		if m.freedBytes > 0 {
+			reclaimStr = warningStyle.Render(fmt.Sprintf("%s (estimating...)", formatSize(m.freedBytes)))
+		} else {
+			reclaimStr = dimStyle.Render("Computing sizes...")
+		}
+	}
+
 	boxContent := fmt.Sprintf(
 		"Projects scanned:     %s\n"+
 			"Unique modules:       %s\n"+
@@ -150,7 +170,7 @@ func (m Model) viewSummary() string {
 		successStyle.Render(fmt.Sprintf("%d", m.projectCount)),
 		successStyle.Render(fmt.Sprintf("%d", m.totalModules)),
 		warningStyle.Render(fmt.Sprintf("%d", len(m.unusedModules))),
-		warningStyle.Render(formatSize(m.freedBytes)),
+		reclaimStr,
 	)
 	b.WriteString(greenBox.Render(boxContent))
 	b.WriteString("\n\n")
@@ -162,7 +182,11 @@ func (m Model) viewSummary() string {
 	} else {
 		b.WriteString(subtitleStyle.Render("  Press Enter to review unused modules"))
 		b.WriteString("\n\n")
-		b.WriteString(helpStyle.Render("enter view | m menu | q quit"))
+		helpStr := "enter view | m menu | q quit"
+		if m.sizeComputing {
+			helpStr = fmt.Sprintf("enter view | m menu | q quit   (%d/%d sizes computed)", m.sizesComputed, len(m.unusedModules))
+		}
+		b.WriteString(helpStyle.Render(helpStr))
 	}
 	return b.String()
 }
@@ -203,7 +227,10 @@ func (m Model) viewList() string {
 		if mod.Selected {
 			checkbox = selectedStyle.Render("[✓]")
 		}
-		sizeStr := dimStyle.Render(fmt.Sprintf("(%s)", formatSize(mod.Size)))
+		sizeStr := dimStyle.Render("(...)")
+		if mod.Size > 0 || !m.sizeComputing {
+			sizeStr = dimStyle.Render(fmt.Sprintf("(%s)", formatSize(mod.Size)))
+		}
 		name := mod.Name
 		if mod.Version != "" {
 			name += "@" + mod.Version

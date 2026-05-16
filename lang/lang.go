@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/Aswanidev-vs/goclean/util"
 )
 
 type CachedPackage struct {
@@ -44,20 +46,6 @@ func homeDir() string {
 func pathExists(p string) bool {
 	_, err := os.Stat(p)
 	return err == nil
-}
-
-func dirSize(path string) int64 {
-	var size int64
-	filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !info.IsDir() {
-			size += info.Size()
-		}
-		return nil
-	})
-	return size
 }
 
 func envOrDefault(key, def string) string {
@@ -263,7 +251,7 @@ func scanGoCache(cachePath string) []CachedPackage {
 			pkgs = append(pkgs, CachedPackage{
 				Name:    parts[0],
 				Version: parts[1],
-				Size:    dirSize(fullPath),
+				Size:    util.DirSize(fullPath),
 				Path:    fullPath,
 			})
 			continue
@@ -294,7 +282,7 @@ func scanGoCache(cachePath string) []CachedPackage {
 				pkgs = append(pkgs, CachedPackage{
 					Name:    name + "/" + modEntry.Name(),
 					Version: version,
-					Size:    dirSize(fullPath),
+					Size:    util.DirSize(fullPath),
 					Path:    fullPath,
 				})
 			}
@@ -388,7 +376,7 @@ func scanCargoCache(cachePath string) []CachedPackage {
 				pkgs = append(pkgs, CachedPackage{
 					Name:    pkgEntry.Name(),
 					Version: verEntry.Name(),
-					Size:    dirSize(fullPath),
+					Size:    util.DirSize(fullPath),
 					Path:    fullPath,
 				})
 			}
@@ -428,19 +416,19 @@ func scanNpmCache(cachePath string) []CachedPackage {
 				pkgs = append(pkgs, CachedPackage{
 					Name:    name + "/" + orgEntry.Name(),
 					Version: "",
-					Size:    dirSize(fullPath),
+					Size:    util.DirSize(fullPath),
 					Path:    fullPath,
 				})
 			}
 			continue
 		}
-		fullPath := filepath.Join(cachePath, name)
-		pkgs = append(pkgs, CachedPackage{
-			Name:    name,
-			Version: "",
-			Size:    dirSize(fullPath),
-			Path:    fullPath,
-		})
+			fullPath := filepath.Join(cachePath, name)
+			pkgs = append(pkgs, CachedPackage{
+				Name:    name,
+				Version: "",
+				Size:    util.DirSize(fullPath),
+				Path:    fullPath,
+			})
 	}
 	return pkgs
 }
@@ -525,7 +513,7 @@ func scanNuGetCache(cachePath string) []CachedPackage {
 			pkgs = append(pkgs, CachedPackage{
 				Name:    pkgName,
 				Version: verEntry.Name(),
-				Size:    dirSize(fullPath),
+				Size:    util.DirSize(fullPath),
 				Path:    fullPath,
 			})
 		}

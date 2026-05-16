@@ -50,11 +50,10 @@ func ScanCache(cachePath string) []CachedModule {
 			modName := parts[0]
 			version := parts[1]
 			fullPath := filepath.Join(cachePath, name)
-			size := dirSize(fullPath)
 			modules = append(modules, CachedModule{
 				Name:    modName,
 				Version: version,
-				Size:    size,
+				Size:    0,
 				Path:    fullPath,
 			})
 			continue
@@ -88,12 +87,11 @@ func ScanCache(cachePath string) []CachedModule {
 				}
 
 				fullPath := filepath.Join(modPath, version)
-				size := dirSize(fullPath)
 				modName := name + "/" + modEntry.Name()
 				modules = append(modules, CachedModule{
 					Name:    modName,
 					Version: version,
-					Size:    size,
+					Size:    0,
 					Path:    fullPath,
 				})
 			}
@@ -101,18 +99,4 @@ func ScanCache(cachePath string) []CachedModule {
 	}
 
 	return modules
-}
-
-func dirSize(path string) int64 {
-	var size int64
-	filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !info.IsDir() {
-			size += info.Size()
-		}
-		return nil
-	})
-	return size
 }

@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -33,6 +34,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.screen = ScreenSummary
 		m.updateFilteredIdx()
+		m.sizeComputing = len(m.unusedModules) > 0
+		m.sizesComputed = 0
+		if len(m.unusedModules) > 0 {
+			return m, m.startSizeComputation()
+		}
 		return m, nil
 
 	case cacheLoadMsg:
@@ -47,6 +53,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cacheOffset = 0
 		m.cacheFilter = ""
 		m.updateCacheFilteredIdx()
+		return m, nil
+
+	case sizeProgressMsg:
+		if msg.id == m.computeID && msg.index < len(m.unusedModules) {
+			oldSize := m.unusedModules[msg.index].Size
+			m.unusedModules[msg.index].Size = msg.size
+			m.freedBytes += msg.size - oldSize
+			m.sizesComputed++
+		}
+		return m, nil
+
+	case allSizesDoneMsg:
+		if msg.id == m.computeID {
+			m.sizeComputing = false
+		}
+		return m, nil
+
+	case tcSizeMsg:
+		if msg.index < len(m.tcSizes) {
+			m.tcSizes[msg.index] = msg.size
+		}
+		return m, nil
+
+	case tcSizesDoneMsg:
+		m.tcComputing = false
+		return m, nil
+
+	case tcCleanDoneMsg:
+		m.tcResults = msg.results
+		m.tcTotalFreed = msg.totalFreed
+		m.screen = ScreenTempCacheDone
 		return m, nil
 
 	case deleteDoneMsg:
@@ -102,6 +139,17 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleCacheConfirmKey(msg)
 	case ScreenCacheDeleting:
 		return m.handleLoadingKey(msg)
+	case ScreenTempCache:
+		return m.handleTempCacheKey(msg)
+	case ScreenTempCacheDetail:
+		return m.handleTempCacheDetailKey(msg)
+	case ScreenTempCacheConfirm:
+		return m.handleTempCacheConfirmKey(msg)
+	case ScreenTempCacheDeleting:
+		return m.handleLoadingKey(msg)
+	case ScreenTempCacheDone:
+		m.screen = ScreenMenu
+		return m, nil
 	}
 
 	return m, nil
@@ -141,6 +189,8 @@ func (m Model) handleMenuKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.saveConfig()
 			return m, nil
 		case 4:
+			return m.initTempCache()
+		case 5:
 			return m, tea.Quit
 		}
 	}
@@ -587,17 +637,13 @@ func (m *Model) sortCacheModules() {
 }
 
 func sortByName(mods []Pkg) {
-	for i := 1; i < len(mods); i++ {
-		for j := i; j > 0 && mods[j].Name < mods[j-1].Name; j-- {
-			mods[j], mods[j-1] = mods[j-1], mods[j]
-		}
-	}
+	sort.Slice(mods, func(i, j int) bool {
+		return mods[i].Name < mods[j].Name
+	})
 }
 
 func sortBySize(mods []Pkg) {
-	for i := 1; i < len(mods); i++ {
-		for j := i; j > 0 && mods[j].Size > mods[j-1].Size; j-- {
-			mods[j], mods[j-1] = mods[j-1], mods[j]
-		}
-	}
+	sort.Slice(mods, func(i, j int) bool {
+		return mods[i].Size > mods[j].Size
+	})
 }
