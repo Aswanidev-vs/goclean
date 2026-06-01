@@ -89,7 +89,17 @@ func DiscoverProjects(paths []string) []string {
 	return projects
 }
 
+const maxWalkDepth = 8
+
 func walkForProjects(root string) []string {
+	return walkForProjectsDepth(root, 0)
+}
+
+func walkForProjectsDepth(root string, depth int) []string {
+	if depth > maxWalkDepth {
+		return nil
+	}
+
 	info, err := os.Stat(root)
 	if err != nil || !info.IsDir() {
 		return nil
@@ -126,7 +136,7 @@ func walkForProjects(root string) []string {
 		wg.Add(1)
 		go func(d string) {
 			defer wg.Done()
-			found := walkForProjects(d)
+			found := walkForProjectsDepth(d, depth+1)
 			if len(found) > 0 {
 				mu.Lock()
 				projects = append(projects, found...)

@@ -173,7 +173,15 @@ func (m Model) viewTempCacheDeleting() string {
 	b.WriteString(m.spinner.View() + " ")
 	b.WriteString(warningStyle.Render("Cleaning selected items..."))
 	b.WriteString("\n\n")
-	b.WriteString(dimStyle.Render("  This may take a moment."))
+	selectedCount, _ := m.getTCSelectedCount()
+	if selectedCount > 0 {
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  Cleaning %d items...", selectedCount)))
+		b.WriteString("\n")
+		bar := m.progress.ViewAs(0.0)
+		b.WriteString("  " + bar)
+	} else {
+		b.WriteString(dimStyle.Render("  This may take a moment."))
+	}
 	return b.String()
 }
 

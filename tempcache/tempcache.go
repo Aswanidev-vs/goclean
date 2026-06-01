@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/Aswanidev-vs/goclean/util"
 )
 
 type Criticality int
@@ -78,22 +79,11 @@ func DetectAvailable() []Item {
 }
 
 func pathExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
+	return util.PathExists(p)
 }
 
 func dirSize(path string) int64 {
-	var size int64
-	filepath.Walk(path, func(p string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil
-		}
-		if !info.IsDir() {
-			size += info.Size()
-		}
-		return nil
-	})
-	return size
+	return util.DirSize(path)
 }
 
 func execCmd(name string, args ...string) (string, error) {

@@ -1,6 +1,7 @@
 package lang
 
 import (
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,6 +36,7 @@ func init() {
 		nodeCache(),
 		javaMavenCache(),
 		javaGradleCache(),
+		dotnetCache(),
 	}
 }
 
@@ -44,8 +46,7 @@ func homeDir() string {
 }
 
 func pathExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
+	return util.PathExists(p)
 }
 
 func envOrDefault(key, def string) string {
@@ -298,8 +299,8 @@ func scanPipCache(cachePath string) []CachedPackage {
 	var pkgs []CachedPackage
 	wheelDir := filepath.Join(cachePath, "wheels")
 	if pathExists(wheelDir) {
-		filepath.Walk(wheelDir, func(p string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
+		filepath.WalkDir(wheelDir, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
 				return nil
 			}
 			if filepath.Ext(p) == ".whl" {
@@ -311,10 +312,15 @@ func scanPipCache(cachePath string) []CachedPackage {
 					name = parts[0]
 					version = parts[1]
 				}
+				info, err := d.Info()
+				var size int64
+				if err == nil {
+					size = info.Size()
+				}
 				pkgs = append(pkgs, CachedPackage{
 					Name:    name,
 					Version: version,
-					Size:    info.Size(),
+					Size:    size,
 					Path:    p,
 				})
 			}
@@ -323,8 +329,12 @@ func scanPipCache(cachePath string) []CachedPackage {
 	}
 	httpDir := filepath.Join(cachePath, "http")
 	if pathExists(httpDir) {
-		filepath.Walk(httpDir, func(p string, info os.FileInfo, err error) error {
-			if err != nil || info.IsDir() {
+		filepath.WalkDir(httpDir, func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() {
+				return nil
+			}
+			info, err := d.Info()
+			if err != nil {
 				return nil
 			}
 			if info.Size() > 1024*1024 {
@@ -422,13 +432,13 @@ func scanNpmCache(cachePath string) []CachedPackage {
 			}
 			continue
 		}
-			fullPath := filepath.Join(cachePath, name)
-			pkgs = append(pkgs, CachedPackage{
-				Name:    name,
-				Version: "",
-				Size:    util.DirSize(fullPath),
-				Path:    fullPath,
-			})
+		fullPath := filepath.Join(cachePath, name)
+		pkgs = append(pkgs, CachedPackage{
+			Name:    name,
+			Version: "",
+			Size:    util.DirSize(fullPath),
+			Path:    fullPath,
+		})
 	}
 	return pkgs
 }
@@ -438,11 +448,15 @@ func scanMavenCache(cachePath string) []CachedPackage {
 		return nil
 	}
 	var pkgs []CachedPackage
-	filepath.Walk(cachePath, func(p string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+	filepath.WalkDir(cachePath, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
 			return nil
 		}
-		if strings.HasSuffix(info.Name(), ".jar") {
+		if strings.HasSuffix(d.Name(), ".jar") {
+			info, err := d.Info()
+			if err != nil {
+				return nil
+			}
 			rel, _ := filepath.Rel(cachePath, filepath.Dir(p))
 			rel = filepath.ToSlash(rel)
 			version := ""
@@ -468,11 +482,15 @@ func scanGradleCache(cachePath string) []CachedPackage {
 		return nil
 	}
 	var pkgs []CachedPackage
-	filepath.Walk(cachePath, func(p string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
+	filepath.WalkDir(cachePath, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
 			return nil
 		}
-		if strings.HasSuffix(info.Name(), ".jar") && info.Size() > 1024 {
+		if strings.HasSuffix(d.Name(), ".jar") {
+			info, err := d.Info()
+			if err != nil || info.Size() <= 1024 {
+				return nil
+			}
 			rel, _ := filepath.Rel(cachePath, filepath.Dir(p))
 			pkgs = append(pkgs, CachedPackage{
 				Name:    filepath.ToSlash(rel),

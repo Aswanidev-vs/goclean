@@ -2,6 +2,7 @@ package tempcache
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -179,13 +180,14 @@ func dockerLogsSize() int64 {
 			continue
 		}
 		logPath := strings.TrimSpace(szOut)
-		out2, err := execCmd("cmd", "/c", "if", "exist", logPath, "echo", "1")
+		if logPath == "" {
+			continue
+		}
+		info, err := os.Stat(logPath)
 		if err != nil {
 			continue
 		}
-		if out2 == "1" {
-			total += 0 // approximate — real size requires stat on log file
-		}
+		total += info.Size()
 	}
 	return total
 }
@@ -197,8 +199,29 @@ func dockerLogsClean() (int64, error) {
 	}
 	ids := strings.Fields(out)
 	var total int64
+	var errs []string
 	for _, id := range ids {
-		execCmd("sh", "-c", fmt.Sprintf("truncate -s 0 $(docker inspect %s --format '{{.LogPath}}')", id))
+		szOut, err := execCmd("docker", "inspect", id, "--format", "{{.LogPath}}")
+		if err != nil {
+			continue
+		}
+		logPath := strings.TrimSpace(szOut)
+		if logPath == "" {
+			continue
+		}
+		info, err := os.Stat(logPath)
+		if err != nil {
+			continue
+		}
+		size := info.Size()
+		if err := os.Truncate(logPath, 0); err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", logPath, err))
+		} else {
+			total += size
+		}
+	}
+	if len(errs) > 0 {
+		return total, fmt.Errorf("some logs could not be truncated: %s", strings.Join(errs, "; "))
 	}
 	return total, nil
 }

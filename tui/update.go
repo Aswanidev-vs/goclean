@@ -37,6 +37,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sizeComputing = len(m.unusedModules) > 0
 		m.sizesComputed = 0
 		if len(m.unusedModules) > 0 {
+			m.computeID++
 			return m, m.startSizeComputation()
 		}
 		return m, nil
@@ -91,6 +92,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.freedBytes = msg.freedBytes
 		m.deleteCount = msg.count
 		m.screen = ScreenDone
+		return m, nil
+
+	case deleteProgressMsg:
+		m.deleteCurrent = msg.current
+		m.deleteTotal = msg.total
 		return m, nil
 
 	case spinner.TickMsg:
@@ -305,6 +311,11 @@ func (m Model) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.updateFilteredIdx()
 		m.cursor = 0
 		m.offset = 0
+	case "m":
+		m.cycleMinSize()
+		m.updateFilteredIdx()
+		m.cursor = 0
+		m.offset = 0
 	case "enter":
 		if m.hasSelection() {
 			m.screen = ScreenConfirm
@@ -369,6 +380,8 @@ func (m Model) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y":
 		m.screen = ScreenDeleting
+		selectedCount, _ := m.getSelectedCount()
+		m.deleteTotal = selectedCount
 		return m, tea.Batch(m.spinner.Tick, m.startDelete())
 	case "n", "q":
 		m.screen = ScreenList
@@ -447,6 +460,11 @@ func (m Model) handleCacheKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.updateCacheFilteredIdx()
 		m.cacheCursor = 0
 		m.cacheOffset = 0
+	case "m":
+		m.cycleMinSize()
+		m.updateCacheFilteredIdx()
+		m.cacheCursor = 0
+		m.cacheOffset = 0
 	case "enter":
 		if m.hasCacheSelection() {
 			m.screen = ScreenCacheConfirm
@@ -459,6 +477,8 @@ func (m Model) handleCacheConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "y":
 		m.screen = ScreenCacheDeleting
+		selectedCount, _ := m.getCacheSelectedCount()
+		m.deleteTotal = selectedCount
 		return m, tea.Batch(m.spinner.Tick, m.startCacheDelete())
 	case "n", "q":
 		m.screen = ScreenCache
@@ -497,7 +517,9 @@ func (m *Model) getRealIndex(visibleIdx int) int {
 func (m *Model) updateFilteredIdx() {
 	m.filteredIdx = nil
 	for i, mod := range m.unusedModules {
-		if m.filterText == "" || strings.Contains(strings.ToLower(mod.Name), strings.ToLower(m.filterText)) {
+		nameMatch := m.filterText == "" || strings.Contains(strings.ToLower(mod.Name), strings.ToLower(m.filterText))
+		sizeMatch := m.minSize <= 0 || mod.Size >= m.minSize
+		if nameMatch && sizeMatch {
 			m.filteredIdx = append(m.filteredIdx, i)
 		}
 	}
@@ -574,7 +596,9 @@ func (m *Model) getCacheRealIndex(visibleIdx int) int {
 func (m *Model) updateCacheFilteredIdx() {
 	m.cacheFIdx = nil
 	for i, mod := range m.cacheModules {
-		if m.cacheFilter == "" || strings.Contains(strings.ToLower(mod.Name), strings.ToLower(m.cacheFilter)) {
+		nameMatch := m.cacheFilter == "" || strings.Contains(strings.ToLower(mod.Name), strings.ToLower(m.cacheFilter))
+		sizeMatch := m.minSize <= 0 || mod.Size >= m.minSize
+		if nameMatch && sizeMatch {
 			m.cacheFIdx = append(m.cacheFIdx, i)
 		}
 	}
@@ -646,4 +670,23 @@ func sortBySize(mods []Pkg) {
 	sort.Slice(mods, func(i, j int) bool {
 		return mods[i].Size > mods[j].Size
 	})
+}
+
+func (m *Model) cycleMinSize() {
+	thresholds := []int64{0, 1 << 20, 10 << 20, 100 << 20, 1 << 30}
+	next := 0
+	for i, t := range thresholds {
+		if m.minSize == t {
+			next = (i + 1) % len(thresholds)
+			break
+		}
+	}
+	m.minSize = thresholds[next]
+}
+
+func formatMinSizeLabel(minSize int64) string {
+	if minSize <= 0 {
+		return "off"
+	}
+	return formatSize(minSize)
 }

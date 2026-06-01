@@ -252,8 +252,13 @@ func (m Model) viewList() string {
 		b.WriteString(successStyle.Render(fmt.Sprintf("    %d selected (%s)", selectedCount, formatSize(selectedSize))))
 	}
 
+	if m.minSize > 0 {
+		b.WriteString("\n")
+		b.WriteString(warningStyle.Render(fmt.Sprintf("    Min size filter: %s", formatMinSizeLabel(m.minSize))))
+	}
+
 	b.WriteString("\n\n")
-	b.WriteString(helpStyle.Render("↑/↓: move | space: toggle | a: all | n: none | /: search | s: sort | enter: delete | q: back"))
+	b.WriteString(helpStyle.Render("↑/↓: move | space: toggle | a: all | n: none | /: search | s: sort | m: min size | enter: delete | q: back"))
 	return b.String()
 }
 
@@ -281,7 +286,14 @@ func (m Model) viewDeleting(msg string) string {
 	b.WriteString(m.spinner.View() + " ")
 	b.WriteString(warningStyle.Render(msg))
 	b.WriteString("\n\n")
-	b.WriteString(dimStyle.Render("  This may take a moment."))
+	if m.deleteTotal > 0 {
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  Deleting %d packages...", m.deleteTotal)))
+		b.WriteString("\n")
+		bar := m.progress.ViewAs(0.0)
+		b.WriteString("  " + bar)
+	} else {
+		b.WriteString(dimStyle.Render("  This may take a moment."))
+	}
 	return b.String()
 }
 
@@ -463,8 +475,13 @@ func (m Model) viewCache() string {
 		b.WriteString(successStyle.Render(fmt.Sprintf("    %d selected (%s)", selectedCount, formatSize(selectedSize))))
 	}
 
+	if m.minSize > 0 {
+		b.WriteString("\n")
+		b.WriteString(warningStyle.Render(fmt.Sprintf("    Min size filter: %s", formatMinSizeLabel(m.minSize))))
+	}
+
 	b.WriteString("\n\n")
-	b.WriteString(helpStyle.Render("↑/↓: move | space: toggle | a: all | n: none | /: search | s: sort | enter: delete | q: back"))
+	b.WriteString(helpStyle.Render("↑/↓: move | space: toggle | a: all | n: none | /: search | s: sort | m: min size | enter: delete | q: back"))
 	return b.String()
 }
 

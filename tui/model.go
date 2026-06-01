@@ -16,6 +16,7 @@ import (
 	"github.com/Aswanidev-vs/goclean/cache"
 	"github.com/Aswanidev-vs/goclean/cleaner"
 	"github.com/Aswanidev-vs/goclean/config"
+	"github.com/Aswanidev-vs/goclean/export"
 	"github.com/Aswanidev-vs/goclean/lang"
 	"github.com/Aswanidev-vs/goclean/scanner"
 	"github.com/Aswanidev-vs/goclean/tempcache"
@@ -97,6 +98,8 @@ type Model struct {
 	deleteResults []cleaner.DeleteResult
 	freedBytes    int64
 	deleteCount   int
+	deleteTotal   int
+	deleteCurrent int
 
 	width  int
 	height int
@@ -107,9 +110,12 @@ type Model struct {
 	dryRun  bool
 	verbose bool
 
+	exportPath string
+
 	sizeComputing bool
 	sizesComputed int
 	computeID     int64
+	minSize       int64
 
 	tcItems      []tempcache.Item
 	tcCursor     int
@@ -137,6 +143,12 @@ type deleteDoneMsg struct {
 	results    []cleaner.DeleteResult
 	freedBytes int64
 	count      int
+}
+
+type deleteProgressMsg struct {
+	current int
+	total   int
+	path    string
 }
 
 type sizeProgressMsg struct {
@@ -167,7 +179,7 @@ type tcCleanDoneMsg struct {
 	totalFreed int64
 }
 
-func NewModel(paths []string, dryRun, verbose bool, ver string) Model {
+func NewModel(paths []string, dryRun, verbose bool, ver string, exportPath string, minSize int64) Model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
@@ -202,10 +214,12 @@ func NewModel(paths []string, dryRun, verbose bool, ver string) Model {
 		verbose:   verbose,
 		showInfo:  true,
 		version:   ver,
+		exportPath: exportPath,
+		minSize:   minSize,
 	}
 }
 
-func (m Model) saveConfig() {
+func (m *Model) saveConfig() {
 	m.cfg.Paths = m.paths
 	m.cfg.DryRun = m.dryRun
 	config.Save(m.cfg)
@@ -217,11 +231,11 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) startScan() tea.Cmd {
 	return tea.Batch(m.spinner.Tick, func() tea.Msg {
-		return doScan(m.paths)
+		return doScan(m.paths, m.exportPath)
 	})
 }
 
-func doScan(paths []string) scanResultMsg {
+func doScan(paths []string, exportPath string) scanResultMsg {
 	projects := scanner.DiscoverProjects(paths)
 	if len(projects) == 0 {
 		return scanResultMsg{projectCount: 0}
@@ -244,6 +258,25 @@ func doScan(paths []string) scanResultMsg {
 			totalFreed += cm.Size
 		}
 	}
+
+	if exportPath != "" {
+		var modReports []export.ModuleReport
+		for _, u := range unused {
+			modReports = append(modReports, export.ModuleReport{
+				Name:    u.Name,
+				Version: u.Version,
+				Size:    u.Size,
+				SizeHR:  formatSize(u.Size),
+				Path:    u.Path,
+			})
+		}
+		report := export.NewReport(
+			len(projects), len(usedModules), len(unused),
+			totalFreed, formatSize(totalFreed), modReports,
+		)
+		export.SaveReport(exportPath, report)
+	}
+
 	return scanResultMsg{
 		projectCount:  len(projects),
 		totalModules:  len(usedModules),
@@ -291,7 +324,6 @@ func loadLangCache(langID string) cacheLoadMsg {
 }
 
 func (m Model) startSizeComputation() tea.Cmd {
-	m.computeID++
 	id := m.computeID
 	var cmds []tea.Cmd
 	for i, mod := range m.unusedModules {
@@ -312,12 +344,13 @@ func (m Model) startSizeComputation() tea.Cmd {
 }
 
 func pathExists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
+	return util.PathExists(p)
 }
 
 func (m Model) startDelete() tea.Cmd {
 	selected := m.getSelectedPaths()
+	m.deleteTotal = len(selected)
+	m.deleteCurrent = 0
 	return func() tea.Msg {
 		var totalFreed int64
 		for _, mod := range m.unusedModules {
@@ -332,6 +365,8 @@ func (m Model) startDelete() tea.Cmd {
 
 func (m Model) startCacheDelete() tea.Cmd {
 	selected := m.getCacheSelectedPaths()
+	m.deleteTotal = len(selected)
+	m.deleteCurrent = 0
 	return func() tea.Msg {
 		var totalFreed int64
 		for _, mod := range m.cacheModules {

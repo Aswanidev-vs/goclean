@@ -1,8 +1,8 @@
 # goclean
 
-> **v1.2.0** | **Status: Go, Python, Rust, Node.js, Java (Maven/Gradle) cache browsing stable. OS temp + browser cache + Docker cleanup added.**
+> **v1.3.0** | Multi-language package cache cleaner with an interactive TUI.
 
-Multi-language package cache cleaner with an interactive TUI. Find unused dependencies, clean OS temp files, browser caches, and Docker build artifacts to reclaim disk space.
+Find unused dependencies, clean OS temp files, browser caches, and Docker build artifacts to reclaim disk space. Supports Go, Python, Rust, Node.js, Java (Maven/Gradle), and .NET (NuGet).
 
 ## Install
 
@@ -32,6 +32,8 @@ goclean
 | `--dry-run` | Simulate deletion without removing files |
 | `--verbose` | Show detailed logs |
 | `--version` | Show version |
+| `--export <file>` | Export scan report to a JSON file |
+| `--min-size <size>` | Minimum size filter (e.g. `1MB`, `100KB`, `1GB`) |
 
 ### Examples
 
@@ -44,6 +46,15 @@ goclean --paths "C:\Users\me\projects,D:\work"
 
 # Dry run mode
 goclean --dry-run --verbose
+
+# Export scan report to JSON
+goclean --export report.json
+
+# Only show packages larger than 10MB
+goclean --min-size 10MB
+
+# Combine flags
+goclean --paths "~/projects" --export report.json --min-size 1MB --dry-run
 ```
 
 ## Features
@@ -62,6 +73,7 @@ Browse and delete cached packages by language:
 | Node.js (npm) | `npm config get cache` / `~/.npm` |
 | Java (Maven) | `~/.m2/repository` |
 | Java (Gradle) | `~/.gradle/caches` |
+| .NET (NuGet) | `~/.nuget/packages` / `%LOCALAPPDATA%\NuGet\Cache` |
 
 ### Clean Temp & Cache Files
 Detect and clean OS and application temp/cache files. Each item shows its source, description, and criticality level:
@@ -79,6 +91,25 @@ Detect and clean OS and application temp/cache files. Each item shows its source
 
 Criticality levels: **Safe** (green) — will be recreated automatically, **Moderate** (yellow) — may slow next operation, **Caution** (red) — permanent data loss.
 
+### JSON Export
+Export scan results to a structured JSON file for reporting or CI integration:
+
+```bash
+goclean --export report.json
+```
+
+The report includes timestamp, project count, module counts, reclaimable space, and a full list of unused modules with sizes and paths.
+
+### Size Filter
+Filter packages by minimum size to focus on the biggest space savings. Available as a CLI flag or interactively in the TUI:
+
+```bash
+# CLI flag
+goclean --min-size 10MB
+```
+
+In the TUI, press `m` to cycle through thresholds: off → 1MB → 10MB → 100MB → 1GB. Works in both the unused modules list and the cache browser.
+
 ### Configure Paths
 Add or remove directories for Go project scanning. Paths are saved to `~/.goclean.json` and persist across sessions.
 
@@ -88,8 +119,10 @@ Switch dry-run mode on/off. When enabled, no files are deleted.
 ## Performance
 
 - **Lazy size loading** — module sizes are computed concurrently in the background. The scan completes in seconds; sizes fill in progressively
-- **Parallel scanning** — project discovery, dependency aggregation, and cache scanning all use goroutine worker pools
-- **Efficient sorting** — uses Go's `sort.Slice` (O(n log n)) instead of insertion sort
+- **Parallel scanning** — project discovery, dependency aggregation, and cache scanning all use goroutine worker pools with semaphore-based concurrency limiting
+- **Depth-limited discovery** — project scanning is capped at 8 directory levels deep to prevent runaway traversal on large filesystems
+- **Efficient directory walking** — uses `filepath.WalkDir` instead of `filepath.Walk` to avoid redundant `Lstat` syscalls
+- **Efficient sorting** — uses Go's `sort.Slice` (O(n log n))
 
 ## Keyboard Controls
 
@@ -108,7 +141,7 @@ Switch dry-run mode on/off. When enabled, no files are deleted.
 | `enter/space` | Browse that language's cache |
 | `q` | Back to menu |
 
-### Package List
+### Package List (Unused Modules & Cache Browser)
 | Key | Action |
 |-----|--------|
 | `↑/↓` | Move cursor |
@@ -117,6 +150,7 @@ Switch dry-run mode on/off. When enabled, no files are deleted.
 | `n` | Deselect all |
 | `/` | Search/filter |
 | `s` | Sort (name/size toggle) |
+| `m` | Cycle min size filter (off/1MB/10MB/100MB/1GB) |
 | `enter` | Delete selected |
 | `q` | Back |
 
@@ -148,7 +182,34 @@ Works on Windows, macOS, and Linux. All paths are auto-detected dynamically usin
 - Supports `--dry-run` to preview what would be deleted
 - Temp/cache cleaners show criticality level for each item
 - Handles file lock errors gracefully (especially on Windows)
-- Deletions are concurrent but rate-limited
+- Deletions are concurrent but rate-limited (4 workers)
+
+## Changelog
+
+### v1.3.0
+- Added `.NET (NuGet)` cache browser (was defined but not registered)
+- Added `--export` flag to export scan reports as JSON
+- Added `--min-size` flag and `m` key to filter by minimum package size
+- Added progress bar display during deletion operations
+- Fixed Docker container logs size calculation (was always returning 0)
+- Fixed Docker logs cleanup to work cross-platform (was using `sh -c`)
+- Fixed `computeID` increment being lost due to value receiver
+- Fixed `saveConfig()` using value receiver instead of pointer
+- Optimized directory walking with `filepath.WalkDir` (avoids extra syscalls)
+- Optimized project discovery with depth limit (max 8 levels)
+- Consolidated duplicate utility functions into `util/` package
+
+### v1.2.0
+- Added temp/cache file cleaner (Windows temp, browser caches, Docker)
+- Added Docker build cache, dangling images, and container log cleanup
+
+### v1.1.0
+- Added multi-language cache browser (Python, Rust, Node.js, Java, .NET)
+- Added language selector with cache availability detection
+- Added persistent configuration (`~/.goclean.json`)
+
+### v1.0.0
+- Initial release with Go module cache scanning and cleanup
 
 ## License
 
