@@ -202,20 +202,20 @@ func NewModel(paths []string, dryRun, verbose bool, ver string, exportPath strin
 	cfg := config.Load()
 
 	return Model{
-		screen:    ScreenMenu,
-		menuItems: []string{"Start Scan", "Browse Cache", "Configure Paths", "Toggle Dry-Run", "Clean Temp & Cache Files", "Quit"},
-		spinner:   sp,
-		progress:  p,
-		search:    ti,
-		pathInput: pi,
-		cfg:       cfg,
-		paths:     paths,
-		dryRun:    dryRun,
-		verbose:   verbose,
-		showInfo:  true,
-		version:   ver,
+		screen:     ScreenMenu,
+		menuItems:  []string{"Start Scan", "Browse Cache", "Configure Paths", "Toggle Dry-Run", "Clean Temp & Cache Files", "Quit"},
+		spinner:    sp,
+		progress:   p,
+		search:     ti,
+		pathInput:  pi,
+		cfg:        cfg,
+		paths:      paths,
+		dryRun:     dryRun,
+		verbose:    verbose,
+		showInfo:   true,
+		version:    ver,
 		exportPath: exportPath,
-		minSize:   minSize,
+		minSize:    minSize,
 	}
 }
 
@@ -351,32 +351,95 @@ func (m Model) startDelete() tea.Cmd {
 	selected := m.getSelectedPaths()
 	m.deleteTotal = len(selected)
 	m.deleteCurrent = 0
-	return func() tea.Msg {
-		var totalFreed int64
-		for _, mod := range m.unusedModules {
-			if mod.Selected {
-				totalFreed += mod.Size
-			}
-		}
-		results := cleaner.DeleteModules(selected, 4, nil)
-		return deleteDoneMsg{results: results, freedBytes: totalFreed, count: len(selected)}
+
+	// Build results incrementally via one-at-a-time deletion so we can emit progress messages.
+	paths := append([]string(nil), selected...)
+
+	type step struct {
+		i       int
+		results []cleaner.DeleteResult
+		freed   int64
 	}
+	st := step{
+		i:       0,
+		results: make([]cleaner.DeleteResult, 0, len(paths)),
+		freed: func() int64 {
+			var total int64
+			for _, mod := range m.unusedModules {
+				if mod.Selected {
+					total += mod.Size
+				}
+			}
+			return total
+		}(),
+	}
+
+	var nextCmd func(s step) tea.Cmd
+	nextCmd = func(s step) tea.Cmd {
+		return func() tea.Msg {
+			if s.i >= len(paths) {
+				// done
+				return deleteDoneMsg{results: s.results, freedBytes: s.freed, count: len(paths)}
+			}
+
+			p := paths[s.i]
+			err := os.RemoveAll(p)
+
+			s.results = append(s.results, cleaner.DeleteResult{Path: p, Error: err})
+			s.i++
+
+			// emit progress update
+			return deleteProgressMsg{current: s.i, total: len(paths), path: p}
+		}
+	}
+
+	return nextCmd(st)
 }
 
 func (m Model) startCacheDelete() tea.Cmd {
 	selected := m.getCacheSelectedPaths()
 	m.deleteTotal = len(selected)
 	m.deleteCurrent = 0
-	return func() tea.Msg {
-		var totalFreed int64
-		for _, mod := range m.cacheModules {
-			if mod.Selected {
-				totalFreed += mod.Size
-			}
-		}
-		results := cleaner.DeleteModules(selected, 4, nil)
-		return deleteDoneMsg{results: results, freedBytes: totalFreed, count: len(selected)}
+
+	paths := append([]string(nil), selected...)
+
+	type step struct {
+		i       int
+		results []cleaner.DeleteResult
+		freed   int64
 	}
+	st := step{
+		i:       0,
+		results: make([]cleaner.DeleteResult, 0, len(paths)),
+		freed: func() int64 {
+			var total int64
+			for _, mod := range m.cacheModules {
+				if mod.Selected {
+					total += mod.Size
+				}
+			}
+			return total
+		}(),
+	}
+
+	var nextCmd func(s step) tea.Cmd
+	nextCmd = func(s step) tea.Cmd {
+		return func() tea.Msg {
+			if s.i >= len(paths) {
+				return deleteDoneMsg{results: s.results, freedBytes: s.freed, count: len(paths)}
+			}
+
+			p := paths[s.i]
+			err := os.RemoveAll(p)
+
+			s.results = append(s.results, cleaner.DeleteResult{Path: p, Error: err})
+			s.i++
+
+			return deleteProgressMsg{current: s.i, total: len(paths), path: p}
+		}
+	}
+
+	return nextCmd(st)
 }
 
 func (m Model) getSelectedPaths() []string {
