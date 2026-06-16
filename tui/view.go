@@ -289,8 +289,10 @@ func (m Model) viewDeleting(msg string) string {
 	if m.deleteTotal > 0 {
 		b.WriteString(dimStyle.Render(fmt.Sprintf("  Deleting %d packages...", m.deleteTotal)))
 		b.WriteString("\n")
-		bar := m.progress.ViewAs(0.0)
+		progress := float64(m.deleteCurrent) / float64(m.deleteTotal)
+		bar := m.progress.ViewAs(progress)
 		b.WriteString("  " + bar)
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  %d/%d", m.deleteCurrent, m.deleteTotal)))
 	} else {
 		b.WriteString(dimStyle.Render("  This may take a moment."))
 	}

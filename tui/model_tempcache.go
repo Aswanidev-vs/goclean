@@ -39,28 +39,39 @@ func (m Model) startTCSizeComputation() tea.Cmd {
 }
 
 func (m Model) startTCClean() tea.Cmd {
-	return func() tea.Msg {
-		var results []tcCleanResult
-		var totalFreed int64
-		for i, item := range m.tcItems {
-			if !m.tcSelected[i] {
-				continue
-			}
-			freed, err := item.CleanFn()
-			results = append(results, tcCleanResult{
-				name:  item.Name,
-				freed: freed,
-				err:   err,
-			})
-			if err == nil {
-				totalFreed += freed
-			}
-		}
-		return tcCleanDoneMsg{
-			results:    results,
-			totalFreed: totalFreed,
+	var indices []int
+	for i, sel := range m.tcSelected {
+		if sel {
+			indices = append(indices, i)
 		}
 	}
+	return m.stepTCClean(indices, 0, nil, 0)
+}
+
+func (m Model) stepTCClean(indices []int, idx int, results []tcCleanResult, totalFreed int64) tea.Cmd {
+	return func() tea.Msg {
+		if idx >= len(indices) {
+			return tcCleanDoneMsg{results: results, totalFreed: totalFreed}
+		}
+		item := m.tcItems[indices[idx]]
+		freed, err := item.CleanFn()
+		results = append(results, tcCleanResult{
+			name:  item.Name,
+			freed: freed,
+			err:   err,
+		})
+		if err == nil {
+			totalFreed += freed
+		}
+		return tcCleanStepMsgInner{indices: indices, idx: idx + 1, results: results, totalFreed: totalFreed}
+	}
+}
+
+type tcCleanStepMsgInner struct {
+	indices    []int
+	idx        int
+	results    []tcCleanResult
+	totalFreed int64
 }
 
 func (m *Model) getTCSelectedCount() (int, int64) {

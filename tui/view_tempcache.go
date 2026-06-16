@@ -177,8 +177,10 @@ func (m Model) viewTempCacheDeleting() string {
 	if selectedCount > 0 {
 		b.WriteString(dimStyle.Render(fmt.Sprintf("  Cleaning %d items...", selectedCount)))
 		b.WriteString("\n")
-		bar := m.progress.ViewAs(0.0)
+		progress := float64(m.tcCleanProgress) / float64(selectedCount)
+		bar := m.progress.ViewAs(progress)
 		b.WriteString("  " + bar)
+		b.WriteString(dimStyle.Render(fmt.Sprintf("  %d/%d", m.tcCleanProgress, selectedCount)))
 	} else {
 		b.WriteString(dimStyle.Render("  This may take a moment."))
 	}

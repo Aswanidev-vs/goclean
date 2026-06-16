@@ -87,6 +87,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.screen = ScreenTempCacheDone
 		return m, nil
 
+	case tcCleanStepMsgInner:
+		m.tcCleanProgress = msg.idx
+		return m, m.stepTCClean(msg.indices, msg.idx, msg.results, msg.totalFreed)
+
 	case deleteDoneMsg:
 		m.deleteResults = msg.results
 		m.freedBytes = msg.freedBytes
@@ -94,10 +98,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.screen = ScreenDone
 		return m, nil
 
-	case deleteProgressMsg:
-		m.deleteCurrent = msg.current
+	case deleteStepMsg:
+		m.deleteCurrent = msg.idx
 		m.deleteTotal = msg.total
-		return m, nil
+		m.deleteResults = msg.results
+		m.deletePaths = msg.paths
+		if msg.idx < len(msg.paths) {
+			return m, m.stepDelete(msg.paths, msg.idx, msg.results, msg.freed, msg.total)
+		}
+		return m, func() tea.Msg {
+			return deleteDoneMsg{results: msg.results, freedBytes: msg.freed, count: len(msg.paths)}
+		}
 
 	case spinner.TickMsg:
 		if isLoadingScreen(m.screen) {
@@ -112,7 +123,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func isLoadingScreen(s Screen) bool {
-	return s == ScreenLoading || s == ScreenDeleting || s == ScreenCacheLoading || s == ScreenCacheDeleting
+	return s == ScreenLoading || s == ScreenDeleting || s == ScreenCacheLoading || s == ScreenCacheDeleting || s == ScreenTempCacheDeleting
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
