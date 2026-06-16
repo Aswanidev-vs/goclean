@@ -201,7 +201,7 @@ func NewModel(paths []string, dryRun, verbose bool, ver string, exportPath strin
 	ti.Width = 50
 
 	pi := textinput.New()
-	pi.Placeholder = "e.g. C:\\Users\\me\\projects"
+	pi.Placeholder = "e.g. ~/projects or C:\\Users\\me\\projects"
 	pi.CharLimit = 500
 	pi.Width = 60
 

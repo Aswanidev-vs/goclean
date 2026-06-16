@@ -221,34 +221,40 @@ func edgeCache() Item {
 
 func edgeCachePaths() []string {
 	var paths []string
-	var base string
+	var bases []string
 	if localApp := os.Getenv("LOCALAPPDATA"); localApp != "" {
-		base = filepath.Join(localApp, "Microsoft", "Edge", "User Data")
-	} else if home := os.Getenv("HOME"); home != "" {
-		base = filepath.Join(home, ".config", "microsoft-edge")
+		bases = append(bases, filepath.Join(localApp, "Microsoft", "Edge", "User Data"))
 	}
-	if base == "" || !pathExists(base) {
-		return paths
+	if home := os.Getenv("HOME"); home != "" {
+		bases = append(bases,
+			filepath.Join(home, ".config", "microsoft-edge"),
+			filepath.Join(home, "Library", "Application Support", "Microsoft Edge"),
+		)
 	}
-	entries, err := os.ReadDir(base)
-	if err != nil {
-		return paths
-	}
-	for _, e := range entries {
-		if !e.IsDir() {
+	for _, base := range bases {
+		if !pathExists(base) {
 			continue
 		}
-		name := e.Name()
-		if !strings.HasPrefix(name, "Profile") && name != "Default" {
+		entries, err := os.ReadDir(base)
+		if err != nil {
 			continue
 		}
-		cacheDir := filepath.Join(base, name, "Cache")
-		if pathExists(cacheDir) {
-			paths = append(paths, cacheDir)
-		}
-		codeCache := filepath.Join(base, name, "Code Cache")
-		if pathExists(codeCache) {
-			paths = append(paths, codeCache)
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			name := e.Name()
+			if !strings.HasPrefix(name, "Profile") && name != "Default" {
+				continue
+			}
+			cacheDir := filepath.Join(base, name, "Cache")
+			if pathExists(cacheDir) {
+				paths = append(paths, cacheDir)
+			}
+			codeCache := filepath.Join(base, name, "Code Cache")
+			if pathExists(codeCache) {
+				paths = append(paths, codeCache)
+			}
 		}
 	}
 	return paths

@@ -49,6 +49,7 @@ func init() {
 	Registry = []Item{
 		windowsTemp(),
 		recycleBin(),
+		unixTemp(),
 		chromeCache(),
 		firefoxCache(),
 		edgeCache(),

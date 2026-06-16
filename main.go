@@ -14,7 +14,7 @@ import (
 	"github.com/Aswanidev-vs/goclean/tui"
 )
 
-var version = "v1.3.0"
+var version = "v2.0.0"
 
 func main() {
 	pathsFlag := flag.String("paths", "", "Comma-separated list of directories to scan")

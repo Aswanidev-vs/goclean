@@ -120,11 +120,13 @@ func recycleBinClean() (int64, error) {
 	if runtime.GOOS != "windows" {
 		return 0, fmt.Errorf("not supported on this platform")
 	}
-	out, err := execCmd("powershell", "-Command", "Clear-RecycleBin -Force")
+	_, err := execCmd("powershell", "-Command", "Clear-RecycleBin -Force")
 	if err != nil {
-		return 0, fmt.Errorf("failed to clear recycle bin (try running as admin): %w", err)
+		_, err = execCmd("pwsh", "-Command", "Clear-RecycleBin -Force")
+		if err != nil {
+			return 0, fmt.Errorf("failed to clear recycle bin (try running as admin): %w", err)
+		}
 	}
-	_ = out
 	sizes := recycleBinSize()
 	return sizes, nil
 }
